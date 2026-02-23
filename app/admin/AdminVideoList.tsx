@@ -1,163 +1,83 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { CATEGORY_LABELS } from '@/lib/utils'
+import { useState } from "react";
 
 interface Video {
-  id: string
-  title: string
-  category: 'SEMINAR' | 'PELATIHAN'
-  subcategory: string
-  year: number
-  youtubeUrl?: string
-  manualUrl?: string
-  description?: string
-  tags?: string
-  createdAt: Date
+  id: string;
+  title: string;
+  description?: string;
+  category?: "SEMINAR" | "PELATIHAN";
+  subcategory?: string;
+  youtubeUrl?: string;
+  manualUrl?: string;
+  thumbnail?: string;
+  tags?: string;
 }
 
-export default function AdminVideoList({ videos }: { videos: Video[] }) {
-  const router = useRouter()
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [filterYear, setFilterYear] = useState<string>('all')
-  const [filterCat, setFilterCat] = useState<string>('all')
-  const [filterSub, setFilterSub] = useState<string>('all')
-  const [search, setSearch] = useState('')
+interface Props {
+  videos: Video[];
+}
 
-  const years = Array.from(new Set(videos.map((v) => v.year))).sort((a, b) => b - a)
-  const subcats = Array.from(new Set(videos.map((v) => v.subcategory))).sort()
+export default function AdminVideoList({ videos: initialVideos }: Props) {
+  const [videos, setVideos] = useState<Video[]>(initialVideos || []);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const filtered = videos.filter((v) => {
-    const yearOk = filterYear === 'all' || v.year === parseInt(filterYear)
-    const catOk = filterCat === 'all' || v.category === filterCat
-    const subOk = filterSub === 'all' || v.subcategory === filterSub
-    const searchOk = search === '' || v.title.toLowerCase().includes(search.toLowerCase())
-    return yearOk && catOk && subOk && searchOk
-  })
-
-  const handleDelete = async (id: string, title: string) => {
-    if (!confirm(`Hapus video "${title}"? Tindakan ini tidak bisa dibatalkan.`)) return
-    setDeletingId(id)
+  const addVideo = async () => {
+    if (!title) return alert("Title wajib diisi");
+    setLoading(true);
     try {
-      await fetch(`/api/videos/${id}`, { method: 'DELETE' })
-      router.refresh()
+      const res = await fetch("/admin/videos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, description }),
+      });
+      if (!res.ok) throw new Error("Failed to add video");
+      const newVideo: Video = await res.json();
+      setVideos([newVideo, ...videos]);
+      setTitle("");
+      setDescription("");
+    } catch (error) {
+      console.error(error);
     } finally {
-      setDeletingId(null)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div>
-      {/* Filters */}
-      <div className="px-6 py-4 border-b border-blue-50 flex flex-wrap gap-3">
+    <div className="p-4">
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
         <input
           type="text"
-          placeholder="Cari judul video..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-[200px] px-3 py-2 text-sm border border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+          placeholder="Title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="border p-2 flex-1"
         />
-        <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)}
-          className="px-3 py-2 text-sm border border-blue-200 rounded-lg focus:border-blue-500 outline-none">
-          <option value="all">Semua Tahun</option>
-          {years.map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
-        <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
-          className="px-3 py-2 text-sm border border-blue-200 rounded-lg focus:border-blue-500 outline-none">
-          <option value="all">Semua Kategori</option>
-          <option value="SEMINAR">🎙️ Seminar</option>
-          <option value="PELATIHAN">🎓 Pelatihan</option>
-        </select>
-        <select value={filterSub} onChange={(e) => setFilterSub(e.target.value)}
-          className="px-3 py-2 text-sm border border-blue-200 rounded-lg focus:border-blue-500 outline-none">
-          <option value="all">Semua Sub-Kategori</option>
-          {subcats.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <span className="text-xs text-sage-400 self-center">{filtered.length} video</span>
+        <input
+          type="text"
+          placeholder="Description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="border p-2 flex-1"
+        />
+        <button
+          onClick={addVideo}
+          disabled={loading}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
+        >
+          {loading ? "Loading..." : "Add Video"}
+        </button>
       </div>
 
-      {/* Table */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-sage-400 text-sm">Tidak ada video ditemukan.</p>
-          <Link href="/admin/videos/new" className="mt-4 inline-block text-sm text-blue-600 font-medium hover:underline">
-            + Tambah video pertama
-          </Link>
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-blue-50 bg-sage-50/50">
-                <th className="text-left px-6 py-3 text-xs font-semibold text-sage-400 uppercase tracking-wider">Judul</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-sage-400 uppercase tracking-wider hidden sm:table-cell">Kategori</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-sage-400 uppercase tracking-wider hidden md:table-cell">Sub-Kategori</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-sage-400 uppercase tracking-wider hidden lg:table-cell">Tahun</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-sage-400 uppercase tracking-wider hidden xl:table-cell">Link</th>
-                <th className="text-right px-6 py-3 text-xs font-semibold text-sage-400 uppercase tracking-wider">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-blue-50">
-              {filtered.map((video) => (
-                <tr key={video.id} className="hover:bg-blue-50/30 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-sm text-forest-800 line-clamp-1 max-w-xs">{video.title}</div>
-                    {video.tags && (
-                      <div className="text-xs text-sage-400 mt-0.5 line-clamp-1">{video.tags}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 hidden sm:table-cell">
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium ${
-                      video.category === 'SEMINAR' ? 'bg-blue-50 text-blue-700' : 'bg-indigo-50 text-indigo-700'
-                    }`}>
-                      {video.category === 'SEMINAR' ? '🎙️' : '🎓'} {video.category}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 hidden md:table-cell">
-                    <span className="text-xs font-medium text-forest-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
-                      {video.subcategory}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 hidden lg:table-cell">
-                    <span className="text-sm font-medium text-forest-700">{video.year}</span>
-                  </td>
-                  <td className="px-4 py-4 hidden xl:table-cell">
-                    {video.youtubeUrl ? (
-                      <a href={video.youtubeUrl} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1">
-                        ▶ YouTube
-                      </a>
-                    ) : video.manualUrl ? (
-                      <a href={video.manualUrl} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:text-blue-700">
-                        🔗 Manual Link
-                      </a>
-                    ) : (
-                      <span className="text-xs text-sage-300">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-end gap-2">
-                      <Link href={`/admin/videos/${video.id}/edit`}
-                        className="px-3 py-1.5 text-xs font-medium text-forest-700 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors">
-                        Edit
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(video.id, video.title)}
-                        disabled={deletingId === video.id}
-                        className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50">
-                        {deletingId === video.id ? '...' : 'Hapus'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <ul>
+        {videos.map((v) => (
+          <li key={v.id} className="border-b py-2">
+            <strong>{v.title}</strong> - {v.description || "-"}
+          </li>
+        ))}
+      </ul>
     </div>
-  )
+  );
 }
