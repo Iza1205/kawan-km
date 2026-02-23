@@ -1,0 +1,28 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Video {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  youtubeUrl  String?
+  manualUrl   String?
+  thumbnail   String?
+  category    Category
+  subcategory String
+  year        Int
+  tags        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum Category {
+  SEMINAR
+  PELATIHAN
+}
