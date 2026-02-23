@@ -1,48 +1,30 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { prisma } from '@/lib/db'
-import { authOptions } from '@/lib/auth'
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const year = searchParams.get('year')
-  const category = searchParams.get('category')
-  const subcategory = searchParams.get('subcategory')
+let cache: any = null;
+let lastFetch = 0;
 
-  const where: Record<string, unknown> = {}
-  if (year) where.year = parseInt(year)
-  if (category) where.category = category
-  if (subcategory) where.subcategory = subcategory
+export async function GET() {
+  const now = Date.now();
 
-  const videos = await prisma.video.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-  })
-
-  return NextResponse.json(videos)
-}
-
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Pakai cache 10 detik
+  if (cache && now - lastFetch < 10000) {
+    return NextResponse.json(cache);
   }
 
-  const body = await req.json()
-  const { title, category, subcategory, year } = body
+  try {
+    // Ambil data Video dari database
+    const videos = await prisma.video.findMany({
+      select: { id: true, title: true, description: true },
+    });
 
-  if (!title || !category || !subcategory || !year) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    // Update cache
+    cache = videos;
+    lastFetch = now;
+
+    return NextResponse.json(videos);
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
-
-  const video = await prisma.video.create({
-    data: {
-      title,
-      category,
-      subcategory,
-      year: parseInt(year),
-    },
-  })
-
-  return NextResponse.json(video, { status: 201 })
 }
